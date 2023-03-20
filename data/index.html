@@ -1,0 +1,88 @@
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <script>
+        google.charts.load('current', { packages: ['corechart'] });
+        google.charts.setOnLoadCallback(drawChart);
+
+        const options = {
+            title: 'Stromzähler',
+            curveType: 'function',
+            legend: { position: 'bottom' }
+        };
+
+        var watt = [[0,0]];
+
+        var data = [
+            ['measure', 'Value', 'Watt']
+        ];
+        var dataForChart = [];
+        var maxMeasure = -1;
+        function addToData(json) {
+
+            for (var i=0;i<json.redEvents.length;i++){
+                var lastRedTS = watt[watt.length-1][0];
+                if (json.redEvents[i]>lastRedTS){
+                    watt.push([json.redEvents[i], 1000/((json.redEvents[i]-lastRedTS)/600*75)*60]);
+                    console.log(watt);
+                }
+            }
+            if (json.vals){
+                const size = json.vals.length;
+                for (var i = 0; i < size; i++) {
+                    const measureIndex = json.end - size + i;
+                    if (measureIndex > maxMeasure) {
+                        data.push([measureIndex, json.vals[i], getWatt(watt, measureIndex)])
+                        maxMeasure = measureIndex;
+                    }
+                }
+                dataForChart=data;
+            } else {
+                dataForChart=[['measure', 'Watt']];
+                for (var i=0;i<watt.length;i++){
+                    dataForChart.push(watt[i]);
+                }
+            }
+            //console.log(data);
+        }
+        function redraw(chart) {
+            dataTable = google.visualization.arrayToDataTable(dataForChart);
+            chart.draw(dataTable, options);
+        }
+        function getWatt(watt, index){
+            result = 0;
+            for (var i=0;i<watt.length;i++){
+                if (watt[i][0]<index){
+                    result = watt[i][1];
+                }
+            }
+            return result;
+        }
+        function drawChart() {
+
+
+            var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
+
+            setInterval(() => {
+                const details = document.getElementById('details').checked;
+                const url = details?'/status?details':'/status';
+                fetch(url).then(res => res.json()).then(json => {
+                    //console.log(json);
+                    addToData(json);
+                    redraw(chart);
+
+                });
+            }, 3000);
+        }
+    </script>
+</head>
+
+<body>
+    <h1>Stromzähler</h1>
+    <input type="checkbox" id="details">Details</input>
+    <div id="curve_chart" />
+</body>
+
+</html>
